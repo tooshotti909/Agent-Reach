@@ -9,10 +9,10 @@ Usage:
     agent-reach setup
 """
 
-import sys
 import argparse
 import json
 import os
+import sys
 import time
 
 from agent_reach import __version__
@@ -155,6 +155,7 @@ def main():
 def _cmd_install(args):
     """One-shot deterministic installer."""
     import os
+
     from agent_reach.config import Config
     from agent_reach.doctor import check_all, format_report
 
@@ -205,17 +206,17 @@ def _cmd_install(args):
         env = _detect_environment()
 
     if env == "server":
-        print(f"Environment: Server/VPS (auto-detected)")
+        print("Environment: Server/VPS (auto-detected)")
     else:
-        print(f"Environment: Local computer (auto-detected)")
+        print("Environment: Local computer (auto-detected)")
 
     # Apply explicit flags
     if args.proxy:
         if dry_run:
-            print(f"[dry-run] Would configure proxy for Bilibili")
+            print("[dry-run] Would configure proxy for Bilibili")
         else:
             config.set("bilibili_proxy", args.proxy)
-            print(f"✅ Proxy configured for Bilibili")
+            print("✅ Proxy configured for Bilibili")
 
     # ── Install core system dependencies (lightweight, always) ──
     print()
@@ -257,15 +258,15 @@ def _cmd_install(args):
         print("   it only happens once during install. Enter your password or click 'Allow'.)")
         try:
             from agent_reach.cookie_extract import configure_from_browser
-            results = configure_from_browser("chrome", config)
+            cookie_results = configure_from_browser("chrome", config)
             found = False
-            for platform, success, message in results:
+            for platform, success, message in cookie_results:
                 if success:
                     print(f"  ✅ {platform}: {message}")
                     found = True
             if not found:
-                results = configure_from_browser("firefox", config)
-                for platform, success, message in results:
+                cookie_results = configure_from_browser("firefox", config)
+                for platform, success, message in cookie_results:
                     if success:
                         print(f"  ✅ {platform}: {message}")
                         found = True
@@ -322,9 +323,9 @@ def _cmd_install(args):
 
 def _install_skill():
     """Install Agent Reach as an agent skill (OpenClaw / Claude Code / .agents)."""
+    import importlib.resources
     import os
     import shutil
-    import importlib.resources
 
     def _is_english_locale(value: str) -> bool:
         normalized = value.strip().lower()
@@ -461,7 +462,6 @@ def _cmd_skill(args):
 
 def _cmd_format(args):
     """Clean and format platform API output from stdin."""
-    import json
     import sys
 
     if args.platform == "xhs":
@@ -483,9 +483,9 @@ def _cmd_format(args):
 
 def _install_system_deps():
     """Install system-level dependencies: gh CLI, Node.js (for mcporter)."""
+    import platform
     import shutil
     import subprocess
-    import platform
     import tempfile
 
     print("Checking system dependencies...")
@@ -611,6 +611,7 @@ def _install_system_deps():
 def _install_xiaoyuzhou_deps():
     """Install Xiaoyuzhou podcast transcription script."""
     import shutil
+
     from agent_reach.config import Config
 
     config = Config()
@@ -1017,6 +1018,7 @@ def _detect_environment():
 def _cmd_configure(args):
     """Set a config value and test it, or auto-extract from browser."""
     import shutil
+
     from agent_reach.config import Config
 
     config = Config()
@@ -1059,7 +1061,7 @@ def _cmd_configure(args):
 
     if args.key == "proxy":
         config.set("bilibili_proxy", value)
-        print(f"✅ Proxy configured for Bilibili!")
+        print("✅ Proxy configured for Bilibili!")
         print("  Note: Reddit 已改为通过 rdt-cli 访问，无需代理。")
 
     elif args.key == "twitter-cookies":
@@ -1114,11 +1116,11 @@ def _cmd_configure(args):
 
     elif args.key == "github-token":
         config.set("github_token", value)
-        print(f"✅ GitHub token configured!")
+        print("✅ GitHub token configured!")
 
     elif args.key == "groq-key":
         config.set("groq_api_key", value)
-        print(f"✅ Groq key configured!")
+        print("✅ Groq key configured!")
 
 
 def _parse_twitter_cookie_input(value: str):
@@ -1153,7 +1155,6 @@ def _configure_xhs_cookies(value):
     (default: /app/data/cookies.json or cookies.json in workdir).
     Format: JSON array of {name, value, domain, path, expires, httpOnly, secure, sameSite}.
     """
-    import json
     import shutil
     import subprocess
 
@@ -1419,13 +1420,18 @@ def _cmd_uninstall(args):
 def _cmd_doctor():
     from agent_reach.config import Config
     from agent_reach.doctor import check_all, format_report
+
     try:
-        from rich import print as rprint
+        from rich import print as rich_print
     except ImportError:
-        rprint = print
+        rich_print = None
     config = Config()
     results = check_all(config)
-    rprint(format_report(results))
+    report = format_report(results)
+    if rich_print is None:
+        print(report)
+    else:
+        rich_print(report)
 
     # Auto-install skill if not already present (fixes #154)
     _install_skill()
@@ -1483,7 +1489,7 @@ def _cmd_setup():
     print("  获取: https://github.com/settings/tokens (无需任何权限)")
     current = config.get("github_token")
     if current:
-        print(f"  当前状态: ✅ 已配置")
+        print("  当前状态: ✅ 已配置")
     else:
         key = input("  GITHUB_TOKEN (回车跳过): ").strip()
         if key:
@@ -1503,7 +1509,7 @@ def _cmd_setup():
     print("  免费额度，注册: https://console.groq.com")
     current = config.get("groq_api_key")
     if current:
-        print(f"  当前状态: ✅ 已配置")
+        print("  当前状态: ✅ 已配置")
     else:
         key = input("  GROQ_API_KEY (回车跳过): ").strip()
         if key:
@@ -1642,7 +1648,7 @@ def _cmd_check_update():
             print("更新命令:")
             print("  pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
             return "update_available"
-        print(f"✅ 已是最新版本")
+        print("✅ 已是最新版本")
         return "up_to_date"
 
     release_err = _classify_github_response_error(resp)
@@ -1680,9 +1686,9 @@ def _cmd_watch():
 
     Only outputs problems. If everything is fine, outputs a single line.
     """
+    from agent_reach import __version__
     from agent_reach.config import Config
     from agent_reach.doctor import check_all
-    from agent_reach import __version__
 
     config = Config()
     issues = []
@@ -1721,8 +1727,8 @@ def _cmd_watch():
         print(f"Agent Reach: 全部正常 ({ok}/{total} 渠道可用，v{__version__} 已是最新)")
         return
 
-    print(f"Agent Reach 监控报告")
-    print(f"=" * 40)
+    print("Agent Reach 监控报告")
+    print("=" * 40)
     print(f"版本: v{__version__}  |  渠道: {ok}/{total}")
 
     if issues:
@@ -1736,7 +1742,7 @@ def _cmd_watch():
         if release_body:
             for line in release_body.strip().split("\n")[:10]:
                 print(f"    {line}")
-        print(f"  更新: pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
+        print("  更新: pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
 
 
 if __name__ == "__main__":
