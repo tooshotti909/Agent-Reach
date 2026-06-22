@@ -12,9 +12,12 @@ from agent_reach.config import Config
 
 
 @pytest.fixture
-def tmp_config(tmp_path):
+def tmp_config(tmp_path, monkeypatch):
     """Create a Config with a temporary directory."""
     config_file = tmp_path / "config.yaml"
+    # Clear environment variables that could interfere with tests
+    for key in ["EXA_API_KEY", "TWITTER_AUTH_TOKEN", "TWITTER_CT0", "GROQ_API_KEY", "GITHUB_TOKEN"]:
+        monkeypatch.delenv(key, raising=False)
     return Config(config_path=config_file)
 
 
