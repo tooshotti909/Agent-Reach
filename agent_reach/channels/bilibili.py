@@ -4,8 +4,8 @@
 import json
 import os
 import shutil
-import subprocess
 import urllib.request
+
 from .base import Channel
 
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"

@@ -28,6 +28,29 @@ _opener = urllib.request.build_opener(
 _cookies_initialized = False
 
 
+def _set_cookie(name: str, value: str, domain: str = ".xueqiu.com") -> None:
+    """Insert a single cookie into the shared cookie jar."""
+    cookie = http.cookiejar.Cookie(
+        version=0,
+        name=name,
+        value=value,
+        port=None,
+        port_specified=False,
+        domain=domain,
+        domain_specified=True,
+        domain_initial_dot=domain.startswith("."),
+        path="/",
+        path_specified=True,
+        secure=True,
+        expires=None,
+        discard=True,
+        comment=None,
+        comment_url=None,
+        rest={},
+    )
+    _cookie_jar.set_cookie(cookie)
+
+
 def _inject_cookie_string(cookie_str: str) -> None:
     """Parse a 'name=value; name2=value2' string and inject into the cookie jar."""
     for pair in cookie_str.split(";"):
@@ -35,25 +58,7 @@ def _inject_cookie_string(cookie_str: str) -> None:
         if "=" not in pair:
             continue
         name, _, value = pair.partition("=")
-        cookie = http.cookiejar.Cookie(
-            version=0,
-            name=name.strip(),
-            value=value.strip(),
-            port=None,
-            port_specified=False,
-            domain=".xueqiu.com",
-            domain_specified=True,
-            domain_initial_dot=True,
-            path="/",
-            path_specified=True,
-            secure=True,
-            expires=None,
-            discard=True,
-            comment=None,
-            comment_url=None,
-            rest={},
-        )
-        _cookie_jar.set_cookie(cookie)
+        _set_cookie(name.strip(), value.strip())
 
 
 def _load_cookies_from_config() -> bool:
@@ -85,7 +90,11 @@ def _load_cookies_from_browser() -> bool:
             if not any(c.get("name") == "xq_a_token" for c in cookies):
                 return False
             for c in cookies:
-                _cookie_jar.set(c["name"], c["value"], domain=c.get("domain", ".xueqiu.com"))
+                _set_cookie(
+                    str(c.get("name", "")),
+                    str(c.get("value", "")),
+                    str(c.get("domain", ".xueqiu.com")),
+                )
             return True
         except ImportError:
             import browser_cookie3

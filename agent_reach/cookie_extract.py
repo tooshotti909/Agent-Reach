@@ -8,12 +8,17 @@ Usage:
     agent-reach configure --from-browser chrome
 """
 
-import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Tuple, TypedDict
 
+
+class PlatformSpec(TypedDict):
+    name: str
+    domains: List[str]
+    cookies: List[str] | None
+    config_key: str
 
 # Platform cookie specs: (platform_name, domain_pattern, needed_cookies)
-PLATFORM_SPECS = [
+PLATFORM_SPECS: List[PlatformSpec] = [
     {
         "name": "Twitter/X",
         "domains": [".x.com", ".twitter.com"],
@@ -87,10 +92,10 @@ def extract_all(browser: str = "chrome") -> Dict[str, dict]:
             raw_cookies = browser_funcs[browser]()
             # Wrap into objects with .name, .value, .domain for compatibility
             class _Cookie:
-                def __init__(self, d):
-                    self.name = d.get("name", "")
-                    self.value = d.get("value", "")
-                    self.domain = d.get("domain", "")
+                def __init__(self, data: Mapping[str, object]):
+                    self.name = str(data.get("name", ""))
+                    self.value = str(data.get("value", ""))
+                    self.domain = str(data.get("domain", ""))
             cookie_jar = [_Cookie(c) for c in raw_cookies]
         except Exception as e:
             raise RuntimeError(
@@ -113,10 +118,10 @@ def extract_all(browser: str = "chrome") -> Dict[str, dict]:
                 f"Make sure {browser} is closed and you have permission."
             )
 
-    results = {}
+    results: Dict[str, Dict[str, str]] = {}
 
     for spec in PLATFORM_SPECS:
-        platform_cookies = {}
+        platform_cookies: Dict[str, str] = {}
         all_cookies_for_domain = []
 
         for cookie in cookie_jar:

@@ -39,12 +39,9 @@ class TestSkillCommand(unittest.TestCase):
                 with patch.dict(os.environ, env, clear=True):
                     _install_skill()
 
-            target = os.path.join(skill_dir, "agent-reach", "SKILL.md")
             # Check at least one known skill dir pattern
-            found = False
             for dirpath, _, filenames in os.walk(tmpdir):
                 if "SKILL.md" in filenames:
-                    found = True
                     # Verify content is non-empty
                     with open(os.path.join(dirpath, "SKILL.md")) as f:
                         content = f.read()
