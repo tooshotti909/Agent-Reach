@@ -1421,17 +1421,15 @@ def _cmd_doctor():
     from agent_reach.config import Config
     from agent_reach.doctor import check_all, format_report
 
-    try:
-        from rich import print as rich_print
-    except ImportError:
-        rich_print = None
     config = Config()
     results = check_all(config)
     report = format_report(results)
-    if rich_print is None:
+    try:
+        from rich import print as rich_print
+    except ImportError:
         print(report)
-    else:
-        rich_print(report)
+        return
+    rich_print(report)
 
     # Auto-install skill if not already present (fixes #154)
     _install_skill()

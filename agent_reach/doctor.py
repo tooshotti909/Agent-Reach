@@ -10,6 +10,15 @@ from agent_reach.channels import get_all_channels
 from agent_reach.config import Config
 
 
+def _escape_markup(text: str) -> str:
+    """Escape Rich markup when Rich is available."""
+    try:
+        from rich.markup import escape
+    except ImportError:
+        return text
+    return escape(text)
+
+
 def check_all(config: Config) -> Dict[str, dict]:
     """Check all channels and return status dict."""
     results = {}
@@ -27,12 +36,6 @@ def check_all(config: Config) -> Dict[str, dict]:
 
 def format_report(results: Dict[str, dict]) -> str:
     """Format results as a readable text report (with Rich markup)."""
-    try:
-        from rich.markup import escape
-    except ImportError:
-        def escape(text: str) -> str:
-            return text
-
     lines = []
     lines.append("[bold cyan]Agent Reach 状态[/bold cyan]")
     lines.append("[cyan]" + "=" * 40 + "[/cyan]")
@@ -45,7 +48,7 @@ def format_report(results: Dict[str, dict]) -> str:
     lines.append("[bold]✅ 装好即用：[/bold]")
     for key, r in results.items():
         if r["tier"] == 0:
-            name_msg = f"[bold]{escape(r['name'])}[/bold] — {escape(r['message'])}"
+            name_msg = f"[bold]{_escape_markup(r['name'])}[/bold] — {_escape_markup(r['message'])}"
             if r["status"] == "ok":
                 lines.append(f"  [green]✅[/green] {name_msg}")
             elif r["status"] == "warn":
@@ -61,7 +64,7 @@ def format_report(results: Dict[str, dict]) -> str:
         lines.append("")
         lines.append("[bold]可选渠道（已安装）：[/bold]")
         for key, r in tier1_active.items():
-            name_msg = f"[bold]{escape(r['name'])}[/bold] — {escape(r['message'])}"
+            name_msg = f"[bold]{_escape_markup(r['name'])}[/bold] — {_escape_markup(r['message'])}"
             lines.append(f"  [green]✅[/green] {name_msg}")
 
     # Tier 2 — optional complex setup
@@ -73,7 +76,7 @@ def format_report(results: Dict[str, dict]) -> str:
             lines.append("")
             lines.append("[bold]可选渠道（已安装）：[/bold]")
         for key, r in tier2_active.items():
-            name_msg = f"[bold]{escape(r['name'])}[/bold] — {escape(r['message'])}"
+            name_msg = f"[bold]{_escape_markup(r['name'])}[/bold] — {_escape_markup(r['message'])}"
             lines.append(f"  [green]✅[/green] {name_msg}")
 
     lines.append("")
