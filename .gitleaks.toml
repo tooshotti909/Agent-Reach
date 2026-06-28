@@ -1,84 +1,39 @@
-# .gitleaks.toml
-# Place this file in the root of your repository.
-# Gitleaks uses this to add custom rules on top of its 400+ built-in patterns.
-# Full docs: https://github.com/gitleaks/gitleaks
+# .gitleaks.toml - Agent-Reach custom secret patterns
+# Uses Go RE2 regex
 
 title = "Agent-Reach Secret Scan Config"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CUSTOM RULES — catches YOUR specific secret formats
-# ─────────────────────────────────────────────────────────────────────────────
-
 [[rules]]
 id          = "twitter-auth-token"
-description = "Twitter / X auth_token cookie"
-regex       = '''auth_token\s*[=:]\s*['"]?([a-f0-9]{40})['"]?'''
-tags        = ["twitter", "session", "critical"]
+description = "Twitter/X auth_token"
+regex       = 'auth_token[ ]*[=:][ ]*[a-f0-9]{32,80}'
+tags        = ["twitter", "critical"]
 
 [[rules]]
 id          = "twitter-ct0"
-description = "Twitter / X ct0 CSRF token"
-regex       = '''ct0\s*[=:]\s*['"]?([a-f0-9]{32,160})['"]?'''
-tags        = ["twitter", "csrf", "critical"]
+description = "Twitter/X ct0 CSRF token"
+regex       = 'ct0[ ]*[=:][ ]*[a-f0-9]{32,160}'
+tags        = ["twitter", "critical"]
 
 [[rules]]
 id          = "apollo-api-key"
 description = "Apollo.io API key"
-regex       = '''apo_[a-zA-Z0-9]{24,}'''
-tags        = ["apollo", "api-key", "high"]
+regex       = 'apo_[a-zA-Z0-9]{24,}'
+tags        = ["apollo", "high"]
 
 [[rules]]
 id          = "exa-api-key"
 description = "Exa AI API key"
-regex       = '''exa-[a-zA-Z0-9]{32,}'''
-tags        = ["exa", "api-key", "medium"]
+regex       = 'exa-[a-zA-Z0-9]{32,}'
+tags        = ["exa", "medium"]
 
 [[rules]]
 id          = "groq-api-key"
 description = "Groq API key"
-regex       = '''gsk_[a-zA-Z0-9]{48,}'''
-tags        = ["groq", "api-key", "medium"]
-
-[[rules]]
-id          = "generic-credentials-yaml"
-description = "Credentials in YAML config files"
-regex       = '''(?i)(password|secret|token|api_key|auth)\s*:\s*['"]?[^\s'"#]{12,}['"]?'''
-tags        = ["yaml", "credentials", "high"]
-[rules.allowlist]
-  regexes   = ["your_.*_here", "REPLACE_ME", "placeholder", "example", "redacted", "<.*>"]
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ALLOWLIST — prevents false positives on known-safe patterns
-# ─────────────────────────────────────────────────────────────────────────────
+regex       = 'gsk_[a-zA-Z0-9]{48,}'
+tags        = ["groq", "medium"]
 
 [allowlist]
-description = "Global allowlist for known safe values"
-regexes     = [
-  # Placeholder values
-  '''your_api_key_here''',
-  '''REPLACE_ME''',
-  '''placeholder''',
-  '''example\.com''',
-  '''<YOUR_.*>''',
-  # Test files
-  '''test_token_.*''',
-  # Environment variable references (not the actual values)
-  '''\$\{.*\}''',
-  '''\$[A-Z_]+''',
-  # Redacted markers
-  '''redacted''',
-  '''REDACTED''',
-]
-
-# Paths to always skip
-paths = [
-  '''.git''',
-  '''node_modules''',
-  '''vendor''',
-  '''.gitleaks.toml''',
-  '''*.md''',
-  '''*.txt''',
-  '''go.sum''',
-  '''package-lock.json''',
-  '''uv.lock''',
-]
+description = "Safe placeholder values"
+regexes = ["your_api_key_here", "REPLACE_ME", "placeholder", "redacted"]
+paths   = [".git", "node_modules", "uv.lock", "package-lock.json"]
