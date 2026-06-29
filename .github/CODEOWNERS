@@ -1,0 +1,15 @@
+# CODEOWNERS — changes to these files require explicit owner approval
+# Only tooshotti909 can approve changes to security-critical paths
+
+# All GitHub Actions workflows and configs — owner must review
+.github/workflows/        @tooshotti909
+.github/scripts/          @tooshotti909
+.github/api/              @tooshotti909
+.github/configs/          @tooshotti909
+.github/CODEOWNERS        @tooshotti909
+.gitleaks.toml            @tooshotti909
+
+# Core source — owner must review
+agent_reach/              @tooshotti909
+pyproject.toml            @tooshotti909
+constraints.txt           @tooshotti909
