@@ -1,0 +1,128 @@
+# Elite Team Unified Configuration
+# Governs the collaboration between GitHub, iPhone 16, and Precocity AI
+# All tokens / credentials must be stored as GitHub Actions secrets —
+# never hard-code real values here.
+
+elite_team:
+  version: "1.0.0"
+  name: "Agent-Reach Elite Collaborative System"
+  description: >
+    Unified configuration for the GitHub ↔ iPhone 16 ↔ Precocity AI integration.
+    GitHub is the central command center; the mobile client provides on-the-go
+    visibility and one-tap control; and the Precocity AI engine continuously
+    optimises check performance, detects failures early, and proposes remediations.
+
+# ── GitHub Central Command Center ──────────────────────────────────────────────
+github:
+  # Repository coordinates (filled automatically from GITHUB_REPOSITORY at runtime)
+  owner: ""
+  repo: ""
+  default_branch: main
+
+  # Webhook settings (configure a GitHub webhook pointing at your mobile-api server)
+  webhook:
+    events:
+      - push
+      - pull_request
+      - check_run
+      - workflow_run
+      - issues
+    content_type: application/json
+    # secret: stored in WEBHOOK_SECRET Actions secret
+
+  # PR/Issue automation
+  automation:
+    auto_label_dependabot: true
+    auto_merge_patch_deps: false     # set true only after thorough testing
+    notify_on_failure: true
+    notify_on_success: false
+
+# ── iPhone 16 Mobile Client ─────────────────────────────────────────────────────
+mobile:
+  platform: ios
+  device: "iPhone 16"
+  push_notifications:
+    enabled: true
+    # APNs credentials stored as APNS_KEY_ID, APNS_TEAM_ID, APNS_AUTH_KEY secrets
+    apns:
+      bundle_id: "com.agentreach.mobile"
+      environment: production    # production | sandbox
+    critical_events:
+      - workflow_failure
+      - secret_detected
+      - pr_review_requested
+      - check_suite_completed
+  dashboard:
+    refresh_interval_seconds: 30
+    max_recent_runs: 20
+  remote_commands:
+    enabled: true
+    allowed_actions:
+      - trigger_workflow
+      - approve_pr
+      - dismiss_review
+      - rerun_failed_checks
+
+# ── Precocity AI Optimisation Engine ───────────────────────────────────────────
+precocity_ai:
+  enabled: true
+  model: "pattern-recognition-v1"
+
+  # Performance targets
+  targets:
+    max_check_latency_seconds: 120
+    max_p95_latency_seconds: 180
+    min_success_rate_percent: 95
+
+  # Predictive failure analysis
+  failure_analysis:
+    enabled: true
+    lookback_runs: 50
+    alert_on_degradation_percent: 20   # alert when success rate drops >20 %
+
+  # Auto-remediation rules
+  remediation:
+    retry_on_timeout: true
+    max_retries: 3
+    retry_backoff_seconds: 30
+    auto_cancel_redundant_runs: true
+
+  # Resource allocation tuning
+  resource_allocation:
+    parallel_jobs: 4
+    cache_enabled: true
+    cache_ttl_hours: 24
+
+# ── Cross-Platform Communication ───────────────────────────────────────────────
+communication:
+  rest_api:
+    port: 8080
+    base_path: /api/v1
+    auth: jwt                # jwt | oauth2
+    rate_limit_per_minute: 60
+
+  websocket:
+    port: 8081
+    ping_interval_seconds: 30
+    max_connections: 100
+
+  logging:
+    level: info              # debug | info | warn | error
+    format: json
+    destinations:
+      - stdout
+      - github_step_summary
+
+# ── Watchdog ──────────────────────────────────────────────────────────────────
+watchdog:
+  enabled: true
+  check_interval_minutes: 5
+  health_check_timeout_seconds: 10
+  alert_channels:
+    - github_issues
+    - mobile_push
+  thresholds:
+    max_workflow_queue_minutes: 15
+    max_consecutive_failures: 3
+    memory_warn_percent: 80
+    cpu_warn_percent: 90
