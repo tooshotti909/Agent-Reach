@@ -1,0 +1,35 @@
+version: 2
+updates:
+  # Python dependencies via pip/pyproject.toml
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependabot"
+      - "security"
+    commit-message:
+      prefix: "deps"
+    ignore:
+      # Only flag security-relevant updates, not every minor bump
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  # GitHub Actions workflow dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependabot"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
