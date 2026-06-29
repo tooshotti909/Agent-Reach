@@ -1,0 +1,161 @@
+name: Watchdog
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: "Hours of history to analyse (default: 2)"
+        required: false
+        default: "2"
+      fail_on_alert:
+        description: "Exit 1 when error-level alerts are found"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: true
+
+jobs:
+  # ─── Health pre-flight ────────────────────────────────────────────────────
+  preflight:
+    name: Pre-flight Health Check
+    runs-on: ubuntu-latest
+    outputs:
+      healthy: ${{ steps.health.outputs.healthy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required workflow files
+        id: health
+        run: |
+          MISSING=0
+          for f in \
+            .github/workflows/pytest.yml \
+            .github/workflows/secret-scan.yml \
+            .github/workflows/watchdog.yml \
+            .github/workflows/check-health.yml \
+            .github/scripts/check-watchdog.py \
+            .github/scripts/performance-tracker.py \
+            .github/configs/watchdog-config.yml; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Required file missing: $f"
+              MISSING=1
+            fi
+          done
+
+          if [ $MISSING -eq 1 ]; then
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::All required files present ✅"
+          fi
+
+      - name: Validate workflow YAML syntax
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'EOF'
+          import sys, pathlib, yaml
+          errors = []
+          for p in pathlib.Path(".github/workflows").glob("*.yml"):
+              try:
+                  yaml.safe_load(p.read_text())
+              except yaml.YAMLError as exc:
+                  errors.append(f"{p}: {exc}")
+          if errors:
+              for e in errors:
+                  print(f"::error::{e}")
+              sys.exit(1)
+          print("::notice::All workflow YAML files are valid ✅")
+          EOF
+
+  # ─── Watchdog daemon ──────────────────────────────────────────────────────
+  watchdog:
+    name: Run Watchdog
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.healthy == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet pyyaml
+
+      - name: Record start time
+        run: echo "WATCHDOG_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Run watchdog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAIL_ON_ALERT: ${{ inputs.fail_on_alert || 'false' }}
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '2' }}
+        run: |
+          python3 .github/scripts/check-watchdog.py
+
+      - name: Record elapsed time
+        if: always()
+        run: |
+          END=$(date +%s)
+          ELAPSED=$((END - WATCHDOG_START))
+          echo "Watchdog completed in ${ELAPSED}s"
+          echo "| Watchdog run time | ${ELAPSED}s |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Performance tracker ──────────────────────────────────────────────────
+  performance:
+    name: Performance Report
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.healthy == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet pyyaml
+
+      - name: Generate performance report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/performance-tracker.py \
+            --lookback-days 7 \
+            --depth 50
+
+  # ─── Summary ──────────────────────────────────────────────────────────────
+  summary:
+    name: Watchdog Summary
+    runs-on: ubuntu-latest
+    needs: [preflight, watchdog, performance]
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          echo "## 🐕 Watchdog Run Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pre-flight | ${{ needs.preflight.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Watchdog | ${{ needs.watchdog.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Performance | ${{ needs.performance.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if watchdog errored
+        if: needs.watchdog.result == 'failure'
+        run: |
+          echo "::error::Watchdog job failed — review the logs above"
+          exit 1

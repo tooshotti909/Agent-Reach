@@ -1,0 +1,107 @@
+# Watchdog configuration for Agent-Reach CI/CD health monitoring
+# All durations are in seconds unless stated otherwise
+
+watchdog:
+  # How often the watchdog schedule runs (matches watchdog.yml cron)
+  poll_interval_minutes: 30
+
+  # Lookback window when querying recent workflow runs
+  lookback_hours: 2
+
+  # Repository to monitor (owner/repo)
+  repository: "tooshotti909/Agent-Reach"
+
+# ── SLA thresholds ────────────────────────────────────────────────────────────
+sla:
+  # Warn when a workflow run exceeds this duration
+  max_run_duration_seconds: 600   # 10 min
+
+  # Fail when a workflow run exceeds this duration (hard timeout)
+  hard_timeout_seconds: 1200      # 20 min
+
+  # Maximum acceptable failure rate (0–1) over the lookback window
+  max_failure_rate: 0.5
+
+  # Minimum number of runs needed before failure-rate is evaluated
+  min_runs_for_failure_rate: 3
+
+# ── Per-workflow SLA overrides ─────────────────────────────────────────────────
+workflow_sla:
+  ci:
+    max_run_duration_seconds: 600
+    hard_timeout_seconds: 900
+  secret-scanning:
+    max_run_duration_seconds: 300
+    hard_timeout_seconds: 600
+  watchdog:
+    max_run_duration_seconds: 120
+    hard_timeout_seconds: 300
+  check-health:
+    max_run_duration_seconds: 120
+    hard_timeout_seconds: 240
+
+# ── Retry / back-off ──────────────────────────────────────────────────────────
+retry:
+  max_attempts: 3
+  initial_delay_seconds: 10
+  backoff_multiplier: 2.0
+  max_delay_seconds: 60
+
+# ── Circuit breaker ───────────────────────────────────────────────────────────
+circuit_breaker:
+  # Open circuit after this many consecutive failures
+  failure_threshold: 5
+
+  # Seconds to keep circuit open before entering half-open state
+  recovery_timeout_seconds: 300
+
+  # Number of successful probes required to fully close the circuit
+  success_threshold: 2
+
+# ── Caching ───────────────────────────────────────────────────────────────────
+cache:
+  # How long (seconds) to reuse a cached check result
+  ttl_seconds: 120
+
+  # Maximum number of entries in the in-memory LRU cache
+  max_entries: 256
+
+# ── Alerting ──────────────────────────────────────────────────────────────────
+alerts:
+  # Write alert summaries to GITHUB_STEP_SUMMARY
+  github_step_summary: true
+
+  # Exit with non-zero code when alerts are found (fails the watchdog job)
+  fail_on_alert: false
+
+  # Minimum severity to report: "info" | "warning" | "error"
+  min_severity: "warning"
+
+# ── Performance tracker ───────────────────────────────────────────────────────
+performance:
+  # Number of recent runs to include in trend analysis
+  history_depth: 50
+
+  # Percentiles to compute for latency reports
+  latency_percentiles: [50, 90, 95, 99]
+
+  # Flag runs whose duration exceeds this multiple of the rolling median
+  slow_run_multiplier: 2.0
+
+# ── Health checks ─────────────────────────────────────────────────────────────
+health:
+  # Check that the GitHub API is reachable
+  check_github_api: true
+
+  # Verify that all required workflow files exist
+  check_workflow_files: true
+
+  # Validate YAML syntax of all workflow files
+  validate_workflow_yaml: true
+
+  # List of workflow files that must exist
+  required_workflows:
+    - ".github/workflows/pytest.yml"
+    - ".github/workflows/secret-scan.yml"
+    - ".github/workflows/watchdog.yml"
+    - ".github/workflows/check-health.yml"

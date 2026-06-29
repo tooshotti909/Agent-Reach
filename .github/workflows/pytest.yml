@@ -7,6 +7,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -20,6 +21,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Record start time
+        run: echo "CI_START=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Install package and test deps
         run: |
           python -m pip install --upgrade pip
@@ -28,3 +32,11 @@ jobs:
       - name: Run tests
         run: |
           pytest -q
+
+      - name: Report elapsed time
+        if: always()
+        run: |
+          END=$(date +%s)
+          ELAPSED=$((END - CI_START))
+          echo "::notice::Python ${{ matrix.python-version }} tests completed in ${ELAPSED}s"
+          echo "| Python ${{ matrix.python-version }} | ${ELAPSED}s |" >> "$GITHUB_STEP_SUMMARY"

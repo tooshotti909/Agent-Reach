@@ -1,0 +1,202 @@
+name: Check Health
+
+on:
+  schedule:
+    # Run hourly
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: check-health
+  cancel-in-progress: true
+
+jobs:
+  # ─── GitHub API reachability ───────────────────────────────────────────────
+  github-api:
+    name: GitHub API Connectivity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping GitHub API
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/tooshotti909/Agent-Reach)
+          END=$(date +%s%3N)
+          LATENCY=$((END - START))
+          echo "GitHub API HTTP status: $HTTP  (${LATENCY}ms)"
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::GitHub API returned $HTTP"
+            exit 1
+          fi
+          echo "::notice::GitHub API reachable in ${LATENCY}ms ✅"
+          echo "| GitHub API | ${HTTP} | ${LATENCY}ms |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Runner resource check ────────────────────────────────────────────────
+  runner-resources:
+    name: Runner Resources
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CPU / memory / disk
+        run: |
+          echo "## 🖥️ Runner Resources" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # CPU cores
+          CORES=$(nproc)
+          echo "CPU cores: $CORES"
+          echo "- CPU cores: $CORES" >> "$GITHUB_STEP_SUMMARY"
+
+          # Memory
+          FREE_MB=$(awk '/MemFree/ {printf "%d", $2/1024}' /proc/meminfo)
+          TOTAL_MB=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)
+          MEM_PCT=$(( (TOTAL_MB - FREE_MB) * 100 / TOTAL_MB ))
+          echo "Memory: ${FREE_MB}MB free / ${TOTAL_MB}MB total (${MEM_PCT}% used)"
+          echo "- Memory: ${FREE_MB}MB free / ${TOTAL_MB}MB total (${MEM_PCT}% used)" >> "$GITHUB_STEP_SUMMARY"
+
+          # Disk
+          DISK_USE=$(df -h / | awk 'NR==2 {print $5}')
+          echo "Disk usage: $DISK_USE"
+          echo "- Disk: $DISK_USE used" >> "$GITHUB_STEP_SUMMARY"
+
+          # Warn if memory > 90 %
+          if [ "$MEM_PCT" -gt 90 ]; then
+            echo "::warning::High memory usage: ${MEM_PCT}%"
+          else
+            echo "::notice::Resources look healthy ✅"
+          fi
+
+  # ─── Workflow file validation ─────────────────────────────────────────────
+  workflow-files:
+    name: Validate Workflow Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required files exist
+        id: files
+        run: |
+          MISSING=0
+          for f in \
+            .github/workflows/pytest.yml \
+            .github/workflows/secret-scan.yml \
+            .github/workflows/watchdog.yml \
+            .github/workflows/check-health.yml \
+            .github/scripts/check-watchdog.py \
+            .github/scripts/performance-tracker.py \
+            .github/configs/watchdog-config.yml; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing: $f"
+              MISSING=1
+            else
+              echo "✅ $f"
+            fi
+          done
+          exit $MISSING
+
+      - name: Validate YAML syntax
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'EOF'
+          import sys, pathlib, yaml
+          errors = []
+          for p in pathlib.Path(".github/workflows").glob("*.yml"):
+              try:
+                  yaml.safe_load(p.read_text())
+              except yaml.YAMLError as exc:
+                  errors.append(f"{p}: {exc}")
+          if errors:
+              for e in errors:
+                  print(f"::error::{e}")
+              sys.exit(1)
+          print(f"::notice::Validated {len(list(pathlib.Path('.github/workflows').glob('*.yml')))} workflow files ✅")
+          EOF
+
+      - name: Validate watchdog config
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'EOF'
+          import sys, pathlib, yaml
+          cfg_path = pathlib.Path(".github/configs/watchdog-config.yml")
+          if not cfg_path.exists():
+              print("::error::watchdog-config.yml not found")
+              sys.exit(1)
+          try:
+              cfg = yaml.safe_load(cfg_path.read_text())
+              assert isinstance(cfg, dict), "config must be a YAML mapping"
+              print("::notice::watchdog-config.yml valid ✅")
+          except Exception as exc:
+              print(f"::error::watchdog-config.yml invalid: {exc}")
+              sys.exit(1)
+          EOF
+
+  # ─── CI check latency (quick smoke-test) ─────────────────────────────────
+  check-latency:
+    name: Measure Check Latency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet pyyaml
+
+      - name: Time a trivial Python startup
+        run: |
+          START=$(date +%s%3N)
+          python3 -c "import sys; print('Python ready')"
+          END=$(date +%s%3N)
+          LATENCY=$((END - START))
+          echo "Python startup latency: ${LATENCY}ms"
+          if [ "$LATENCY" -gt 5000 ]; then
+            echo "::warning::Python startup took ${LATENCY}ms (>5s)"
+          else
+            echo "::notice::Python startup in ${LATENCY}ms ✅"
+          fi
+
+      - name: Time package import
+        run: |
+          START=$(date +%s%3N)
+          python3 -c "import yaml; print('yaml imported')"
+          END=$(date +%s%3N)
+          LATENCY=$((END - START))
+          echo "yaml import latency: ${LATENCY}ms"
+          echo "| yaml import | ${LATENCY}ms |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Health summary ───────────────────────────────────────────────────────
+  health-summary:
+    name: Health Summary
+    runs-on: ubuntu-latest
+    needs: [github-api, runner-resources, workflow-files, check-latency]
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          echo "## 🏥 Health Check Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| GitHub API | ${{ needs.github-api.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Runner Resources | ${{ needs.runner-resources.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Workflow Files | ${{ needs.workflow-files.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check Latency | ${{ needs.check-latency.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if any health check failed
+        if: |
+          needs.github-api.result == 'failure' ||
+          needs.workflow-files.result == 'failure'
+        run: |
+          echo "::error::One or more critical health checks failed"
+          exit 1
