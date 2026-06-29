@@ -1,0 +1,222 @@
+name: Elite Orchestrator
+
+# Master workflow that coordinates GitHub, iPhone 16, and Precocity AI.
+# Triggered on every push, PR, and nightly schedule so all three systems
+# stay in sync.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    # Nightly health check / AI analysis at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode (full | ai-only | mobile-sync)"
+        required: false
+        default: full
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: write
+
+jobs:
+  # ── 1. GitHub Command Center ───────────────────────────────────────────────
+  command-center:
+    name: GitHub Command Center
+    runs-on: ubuntu-latest
+    outputs:
+      run_mode: ${{ steps.detect.outputs.mode }}
+      ai_insights: ${{ steps.ai.outputs.insights }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml requests
+
+      - name: Detect run mode
+        id: detect
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              MODE="full"
+            else
+              MODE="full"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "🎯 Run mode: $MODE"
+
+      - name: Load elite config
+        id: config
+        run: |
+          python3 - <<'EOF'
+          import yaml, json, os
+          with open(".github/configs/elite-team-config.yml") as f:
+              cfg = yaml.safe_load(f)
+          print("✅ Elite config loaded")
+          print(f"  Team: {cfg['elite_team']['name']}")
+          print(f"  Version: {cfg['elite_team']['version']}")
+          # Surface watchdog thresholds
+          wt = cfg.get("watchdog", {}).get("thresholds", {})
+          print(f"  Max queue wait: {wt.get('max_workflow_queue_minutes', 15)} min")
+          print(f"  Max consecutive failures: {wt.get('max_consecutive_failures', 3)}")
+          EOF
+
+      - name: Run Precocity AI analysis
+        id: ai
+        run: |
+          python3 .github/scripts/precocity-ai.py \
+            --event "${{ github.event_name }}" \
+            --sha "${{ github.sha }}" \
+            --ref "${{ github.ref }}" \
+            --output github-actions
+        continue-on-error: true
+
+      - name: Broadcast event to mobile clients
+        if: env.WEBHOOK_SECRET != ''
+        env:
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          echo "📱 Broadcasting ${{ github.event_name }} event to mobile clients"
+          python3 .github/api/mobile-api.py \
+            --action broadcast \
+            --event "${{ github.event_name }}" \
+            --ref "${{ github.ref }}" \
+            --sha "${{ github.sha }}" \
+            --status "running" \
+          || echo "⚠️  Mobile broadcast skipped (no WEBHOOK_SECRET configured)"
+
+  # ── 2. Precocity AI Check Optimisation ────────────────────────────────────
+  ai-optimiser:
+    name: Precocity AI Optimiser
+    runs-on: ubuntu-latest
+    needs: command-center
+    if: needs.command-center.outputs.run_mode != 'mobile-sync'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyyaml requests
+
+      - name: Analyse check performance
+        run: |
+          python3 .github/scripts/precocity-ai.py \
+            --event "${{ github.event_name }}" \
+            --sha "${{ github.sha }}" \
+            --ref "${{ github.ref }}" \
+            --mode performance \
+            --output github-actions
+
+      - name: Detect failure patterns
+        run: |
+          python3 .github/scripts/precocity-ai.py \
+            --event "${{ github.event_name }}" \
+            --sha "${{ github.sha }}" \
+            --ref "${{ github.ref }}" \
+            --mode failure-analysis \
+            --output github-actions
+
+      - name: Generate optimisation report
+        run: |
+          python3 .github/scripts/precocity-ai.py \
+            --event "${{ github.event_name }}" \
+            --sha "${{ github.sha }}" \
+            --ref "${{ github.ref }}" \
+            --mode report \
+            --output github-actions >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 3. Mobile Sync ─────────────────────────────────────────────────────────
+  mobile-sync:
+    name: iPhone 16 Mobile Sync
+    runs-on: ubuntu-latest
+    needs: [command-center, ai-optimiser]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyyaml requests
+
+      - name: Determine overall status
+        id: status
+        run: |
+          CC="${{ needs.command-center.result }}"
+          AI="${{ needs.ai-optimiser.result }}"
+          if [ "$CC" = "failure" ] || [ "$AI" = "failure" ]; then
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+          elif [ "$CC" = "success" ] && ( [ "$AI" = "success" ] || [ "$AI" = "skipped" ] ); then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=warning" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send push notification to iPhone 16
+        env:
+          APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
+          APNS_TEAM_ID: ${{ secrets.APNS_TEAM_ID }}
+          APNS_AUTH_KEY: ${{ secrets.APNS_AUTH_KEY }}
+          MOBILE_DEVICE_TOKEN: ${{ secrets.MOBILE_DEVICE_TOKEN }}
+        run: |
+          python3 .github/api/mobile-api.py \
+            --action push-notify \
+            --event "${{ github.event_name }}" \
+            --ref "${{ github.ref }}" \
+            --sha "${{ github.sha }}" \
+            --status "${{ steps.status.outputs.status }}" \
+          || echo "ℹ️  Push notification skipped (APNs secrets not configured)"
+
+      - name: Update mobile dashboard
+        run: |
+          python3 .github/api/mobile-api.py \
+            --action dashboard-update \
+            --event "${{ github.event_name }}" \
+            --ref "${{ github.ref }}" \
+            --sha "${{ github.sha }}" \
+            --status "${{ steps.status.outputs.status }}" \
+          || echo "ℹ️  Dashboard update skipped"
+
+      - name: Write elite team summary
+        run: |
+          {
+            echo "## 🚀 Elite Team Status"
+            echo ""
+            echo "| Component | Status |"
+            echo "|-----------|--------|"
+            echo "| 🖥️ GitHub Command Center | ${{ needs.command-center.result }} |"
+            echo "| 🤖 Precocity AI Optimiser | ${{ needs.ai-optimiser.result }} |"
+            echo "| 📱 iPhone 16 Mobile Sync | ${{ job.status }} |"
+            echo ""
+            echo "**Event:** \`${{ github.event_name }}\`"
+            echo "**Ref:** \`${{ github.ref }}\`"
+            echo "**SHA:** \`${{ github.sha }}\`"
+            echo ""
+            echo "_Generated by the Agent-Reach Elite Collaborative System v1.0.0_"
+          } >> "$GITHUB_STEP_SUMMARY"
