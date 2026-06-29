@@ -183,16 +183,17 @@ def op_push_notify(args: argparse.Namespace) -> int:
     device_token = _env("MOBILE_DEVICE_TOKEN")
     bundle_id = _env("APNS_BUNDLE_ID") or "com.agentreach.mobile"
 
-    missing = [
-        name
-        for name, val in [
-            ("APNS_KEY_ID", key_id),
-            ("APNS_TEAM_ID", team_id),
-            ("APNS_AUTH_KEY", auth_key),
-            ("MOBILE_DEVICE_TOKEN", device_token),
-        ]
-        if not val
-    ]
+    # Build the list of missing secret *names* without coupling secret values
+    # to the names list (avoids logging sensitive data).
+    missing: list[str] = []
+    if not key_id:
+        missing.append("APNS_KEY_ID")
+    if not team_id:
+        missing.append("APNS_TEAM_ID")
+    if not auth_key:
+        missing.append("APNS_AUTH_KEY")
+    if not device_token:
+        missing.append("MOBILE_DEVICE_TOKEN")
     if missing:
         print(
             f"  push-notify: secrets not configured ({', '.join(missing)}) -- skipping"
