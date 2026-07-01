@@ -338,6 +338,12 @@ def parse_args() -> argparse.Namespace:
         default="text",
         help="Output format",
     )
+    p.add_argument(
+        "--no-fail",
+        action="store_true",
+        default=False,
+        help="Always exit 0 regardless of insight severity (advisory mode)",
+    )
     return p.parse_args()
 
 
@@ -379,8 +385,10 @@ def main() -> int:
     else:
         emit_summary(insights, metrics, plan, args.event, args.ref)
 
-    # Exit non-zero only on critical issues
+    # Exit non-zero only on critical issues (unless --no-fail advisory mode)
     has_critical = any(i.severity == "critical" for i in insights)
+    if args.no_fail:
+        return 0
     return 1 if has_critical else 0
 
 
