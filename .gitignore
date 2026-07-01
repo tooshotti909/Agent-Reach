@@ -8,3 +8,20 @@ build/
 .env
 .agent-reach/
 *.log
+# OCHO — Private key & secret protection
+*.pem
+*.key
+*.p12
+*.pfx
+.env.local
+.env.production
+.env.staging
+*_token
+*_secret
+*_api_key
+~/.config/ocho/
+credentials.json
+secrets.json
+*.keystore
+id_rsa
+id_ed25519
