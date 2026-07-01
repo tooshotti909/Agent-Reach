@@ -1,0 +1,134 @@
+name: Memory Profile
+
+on:
+  schedule:
+    # Runs daily at 02:00 UTC — gives 7 data points per week for trend analysis
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write   # needed to upload artifacts
+
+jobs:
+  memory-profile:
+    name: Heap & Allocation Profile
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true
+          pip install memory-profiler psutil
+
+      - name: Run memory profile per module
+        run: |
+          python - <<'PYEOF'
+          import importlib
+          import json
+          import os
+          import sys
+          import tracemalloc
+          import gc
+          import time
+          import psutil
+
+          # Modules to profile — top-level packages + key submodules
+          MODULES = [
+              "agent_reach",
+              "agent_reach.core",
+              "agent_reach.channels.twitter",
+              "agent_reach.channels.reddit",
+              "agent_reach.channels.youtube",
+              "agent_reach.channels.rss",
+              "agent_reach.channels.web",
+              "agent_reach.integrations.mcp_server",
+              "agent_reach.cli",
+              "agent_reach.config",
+          ]
+
+          results = []
+          proc = psutil.Process(os.getpid())
+
+          for mod_name in MODULES:
+              gc.collect()
+              tracemalloc.start()
+              rss_before = proc.memory_info().rss
+
+              try:
+                  mod = importlib.import_module(mod_name)
+              except Exception as e:
+                  results.append({
+                      "module": mod_name,
+                      "error": str(e),
+                      "current_bytes": 0,
+                      "peak_bytes": 0,
+                      "rss_delta_bytes": 0,
+                      "top_allocations": [],
+                  })
+                  tracemalloc.stop()
+                  continue
+
+              # Exercise the module a tiny bit to trigger lazy allocations
+              time.sleep(0.01)
+
+              current, peak = tracemalloc.get_traced_memory()
+              tracemalloc.stop()
+              rss_after = proc.memory_info().rss
+
+              # Top 5 allocation sites
+              snapshot = tracemalloc.take_snapshot() if tracemalloc.is_tracing() else None
+              top_allocs = []
+              try:
+                  tracemalloc.start()
+                  snap = tracemalloc.take_snapshot()
+                  tracemalloc.stop()
+                  stats = snap.statistics("lineno")[:5]
+                  top_allocs = [
+                      {"file": str(s.traceback[0].filename).replace(os.getcwd() + "/", ""),
+                       "line": s.traceback[0].lineno,
+                       "size_bytes": s.size,
+                       "count": s.count}
+                      for s in stats
+                  ]
+              except Exception:
+                  pass
+
+              results.append({
+                  "module": mod_name,
+                  "current_bytes": current,
+                  "peak_bytes": peak,
+                  "rss_delta_bytes": max(0, rss_after - rss_before),
+                  "top_allocations": top_allocs,
+              })
+              print(f"  {mod_name}: peak={peak/1024:.1f}KB rss_delta={max(0,rss_after-rss_before)/1024:.1f}KB")
+
+          output = {
+              "repo": "tooshotti909/Agent-Reach",
+              "timestamp": time.time(),
+              "run_date": time.strftime("%Y-%m-%d", time.gmtime()),
+              "python_version": sys.version,
+              "modules": results,
+          }
+
+          os.makedirs("memory_profile_output", exist_ok=True)
+          out_path = f"memory_profile_output/profile_{time.strftime('%Y%m%d_%H%M%S', time.gmtime())}.json"
+          with open(out_path, "w") as f:
+              json.dump(output, f, indent=2)
+          print(f"\nProfile saved to {out_path}")
+          PYEOF
+
+      - name: Upload profile artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-profile-${{ github.run_id }}
+          path: memory_profile_output/
+          retention-days: 35   # keep 5 weeks for baseline comparison
