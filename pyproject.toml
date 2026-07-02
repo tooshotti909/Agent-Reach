@@ -42,7 +42,7 @@ browser = ["playwright>=1.40"]
 cookies = ["browser-cookie3>=0.19"]
 all = ["playwright>=1.40", "mcp[cli]>=1.0", "browser-cookie3>=0.19"]
 dev = [
-    "pytest>=8.0",
+    "pytest>=9.0",
     "ruff>=0.8",
     "mypy>=1.12",
     "types-requests>=2.32",
