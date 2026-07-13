@@ -6,23 +6,15 @@ Channel registry — lists all supported platforms for doctor checks.
 from typing import List, Optional
 
 from .base import Channel
-from .bilibili import BilibiliChannel
-from .douyin import DouyinChannel
 from .exa_search import ExaSearchChannel
 from .github import GitHubChannel
 from .linkedin import LinkedInChannel
 from .reddit import RedditChannel
 from .rss import RSSChannel
 from .twitter import TwitterChannel
-from .v2ex import V2EXChannel
 
 # Import all channels
 from .web import WebChannel
-from .wechat import WeChatChannel
-from .weibo import WeiboChannel
-from .xiaohongshu import XiaoHongShuChannel
-from .xiaoyuzhou import XiaoyuzhouChannel
-from .xueqiu import XueqiuChannel
 from .youtube import YouTubeChannel
 
 ALL_CHANNELS: List[Channel] = [
@@ -30,15 +22,7 @@ ALL_CHANNELS: List[Channel] = [
     TwitterChannel(),
     YouTubeChannel(),
     RedditChannel(),
-    BilibiliChannel(),
-    XiaoHongShuChannel(),
-    DouyinChannel(),
     LinkedInChannel(),
-    WeChatChannel(),
-    WeiboChannel(),
-    XiaoyuzhouChannel(),
-    V2EXChannel(),
-    XueqiuChannel(),
     RSSChannel(),
     ExaSearchChannel(),
     WebChannel(),
