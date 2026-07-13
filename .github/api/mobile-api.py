@@ -160,7 +160,13 @@ def _build_apns_jwt(key_id: str, team_id: str, auth_key_b64: str) -> str | None:
     ).rstrip(b"=")
 
     key_pem = base64.b64decode(auth_key_b64)
-    private_key = serialization.load_pem_private_key(key_pem, None)
+    _raw_key = serialization.load_pem_private_key(key_pem, None)
+    if not isinstance(_raw_key, ec.EllipticCurvePrivateKey):
+        raise ValueError(
+            "APNs auth key must be an EC private key (ES256); "
+            f"got {type(_raw_key).__name__}"
+        )
+    private_key: ec.EllipticCurvePrivateKey = _raw_key
     signing_input = header + b"." + claims
     signature = private_key.sign(signing_input, ec.ECDSA(hashes.SHA256()))
     jwt_token = (
