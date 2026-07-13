@@ -20,7 +20,7 @@ def _get_json(url: str) -> Any:
 
 class V2EXChannel(Channel):
     name = "v2ex"
-    description = "V2EX 节点、主题与回复"
+    description = "V2EX nodes, topics and replies"
     backends = ["V2EX API (public)"]
     tier = 0
 
@@ -42,9 +42,9 @@ class V2EXChannel(Channel):
             _get_json(
                 "https://www.v2ex.com/api/topics/show.json?node_name=python&page=1"
             )
-            return "ok", "公开 API 可用（热门主题、节点浏览、主题详情、用户信息）"
+            return "ok", "Public API available (hot topics, node browsing, topic details, user info)"
         except Exception as e:
-            return "warn", f"V2EX API 连接失败（可能需要代理）：{e}"
+            return "warn", f"V2EX API connection failed (may need a proxy): {e}"
 
     # ------------------------------------------------------------------ #
     # Data-fetching methods

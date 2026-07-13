@@ -18,7 +18,7 @@ class Channel(ABC):
     """Base class for all channels."""
 
     name: str = ""                    # e.g. "youtube"
-    description: str = ""             # e.g. "YouTube 视频和字幕"
+    description: str = ""             # e.g. "YouTube videos and subtitles"
     backends: List[str] = []          # e.g. ["yt-dlp"] — what upstream tool is used
     tier: int = 0                     # 0=zero-config, 1=needs free key, 2=needs setup
 

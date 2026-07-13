@@ -8,7 +8,7 @@ from .base import Channel
 
 class RSSChannel(Channel):
     name = "rss"
-    description = "RSS/Atom 订阅源"
+    description = "RSS/Atom feeds"
     backends = ["feedparser"]
     tier = 0
 
@@ -17,5 +17,5 @@ class RSSChannel(Channel):
 
     def check(self, config=None):
         if importlib.util.find_spec("feedparser") is not None:
-            return "ok", "可读取 RSS/Atom 源"
-        return "off", "feedparser 未安装。安装：pip install feedparser"
+            return "ok", "Can read RSS/Atom feeds"
+        return "off", "feedparser not installed. Install: pip install feedparser"
