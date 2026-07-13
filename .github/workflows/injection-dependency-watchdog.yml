@@ -1,0 +1,68 @@
+name: Injection & Dependency Watchdog
+
+# Complements the existing Watchdog / Secret Scanning / Elite Orchestrator
+# workflows: focuses specifically on (1) known-CVE dependency risk and
+# (2) static analysis for injection-style vulnerabilities (SQL/command
+# injection, eval/exec misuse, unsafe deserialization, etc.) plus a
+# lightweight sanity check that API entrypoints have rate-limiting in place
+# to reduce flood/DoS exposure.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit dependencies
+        run: |
+          if [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt --desc || true
+          fi
+          if [ -f pyproject.toml ] || [ -f uv.lock ]; then
+            pip-audit --desc || true
+          fi
+
+  injection-guard:
+    name: Static injection / unsafe-pattern scan (Bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Bandit
+        run: pip install bandit
+      - name: Run Bandit
+        run: bandit -r . -ll -x ./tests,./node_modules,./.venv --format screen
+
+  flood-guard-check:
+    name: Rate-limit / flood-protection sanity check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Warn if API endpoints lack rate limiting
+        run: |
+          echo "Scanning for API entrypoints without visible rate-limit guards..."
+          grep -RIl --include="*.py" -E "def (handler|handle_request|app\.route|@app\.(get|post|put))" . 2>/dev/null | while read -r f; do
+            if ! grep -qiE "rate.?limit|throttle|ratelimit" "$f"; then
+              echo "::warning file=$f::No rate-limiting keyword found near this API entrypoint — review for flood/DoS exposure."
+            fi
+          done
