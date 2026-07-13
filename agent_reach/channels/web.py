@@ -10,7 +10,7 @@ _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 class WebChannel(Channel):
     name = "web"
-    description = "任意网页"
+    description = "Any web page"
     backends = ["Jina Reader"]
     tier = 0
 
@@ -18,10 +18,10 @@ class WebChannel(Channel):
         return True  # Fallback — handles any URL
 
     def check(self, config=None):
-        return "ok", "通过 Jina Reader 读取任意网页（curl https://r.jina.ai/URL）"
+        return "ok", "Reads any web page via Jina Reader (curl https://r.jina.ai/URL)"
 
     def read(self, url: str) -> str:
-        """通过 Jina Reader 读取网页，返回 Markdown 全文。"""
+        """Read a web page via Jina Reader and return the full Markdown text."""
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
         jina_url = f"https://r.jina.ai/{url}"

@@ -51,7 +51,7 @@ class V2EXChannel(Channel):
     # ------------------------------------------------------------------ #
 
     def get_hot_topics(self, limit: int = 20) -> list:
-        """获取热门帖子列表。
+        """Get the list of hot topics.
 
         Returns a list of dicts with keys:
           title, url, replies, node_name, node_title, content
@@ -76,11 +76,11 @@ class V2EXChannel(Channel):
         return results
 
     def get_node_topics(self, node_name: str, limit: int = 20) -> list:
-        """获取指定节点的最新帖子。
+        """Get the latest topics for a given node.
 
         Args:
-            node_name: 节点名称，如 "python"、"tech"、"jobs"
-            limit:     最多返回条数
+            node_name: Node name, e.g. "python", "tech", "jobs"
+            limit:     Maximum number of results to return
 
         Returns a list of dicts with keys:
           title, url, replies, node_name, node_title, content
@@ -109,10 +109,10 @@ class V2EXChannel(Channel):
         return results
 
     def get_topic(self, topic_id: int) -> dict:
-        """获取单个帖子详情和回复列表。
+        """Get a single topic's details and reply list.
 
         Args:
-            topic_id: 帖子 ID（从 URL https://www.v2ex.com/t/<id> 中获取）
+            topic_id: Topic ID (extracted from URL https://www.v2ex.com/t/<id>)
 
         Returns a dict with keys:
           id, title, url, content, replies_count, node_name, node_title,
@@ -162,10 +162,10 @@ class V2EXChannel(Channel):
         }
 
     def get_user(self, username: str) -> dict:
-        """获取用户信息。
+        """Get user information.
 
         Args:
-            username: V2EX 用户名
+            username: V2EX username
 
         Returns a dict with keys:
           id, username, url, website, twitter, psn, github, btc,

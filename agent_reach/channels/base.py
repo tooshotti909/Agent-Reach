@@ -32,4 +32,4 @@ class Channel(ABC):
         Check if this channel's upstream tool is available.
         Returns (status, message) where status is 'ok'/'warn'/'off'/'error'.
         """
-        return "ok", f"{'、'.join(self.backends) if self.backends else '内置'}"
+        return "ok", f"{', '.join(self.backends) if self.backends else 'built-in'}"
