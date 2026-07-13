@@ -63,22 +63,20 @@ def main():
     p_install.add_argument("--env", choices=["local", "server", "auto"], default="auto",
                            help="Environment: local, server, or auto-detect")
     p_install.add_argument("--proxy", default="",
-                           help="Residential proxy for Reddit/Bilibili (http://user:pass@ip:port)")
+                           help="Proxy for Reddit (******ip:port)")
     p_install.add_argument("--safe", action="store_true",
                            help="Safe mode: skip automatic system changes, show what's needed instead")
     p_install.add_argument("--dry-run", action="store_true",
                            help="Show what would be done without making any changes")
     p_install.add_argument("--channels", default="",
                            help="Comma-separated optional channels to install "
-                                "(twitter,weibo,wechat,xiaoyuzhou,xueqiu,xiaohongshu,"
-                                "reddit,bilibili,douyin,linkedin,all)")
+                                "(twitter,reddit,linkedin,all)")
 
     # ── configure ──
     p_conf = sub.add_parser("configure", help="Set a config value or auto-extract from browser")
     p_conf.add_argument("key", nargs="?", default=None,
                         choices=["proxy", "github-token", "groq-key",
-                                 "twitter-cookies", "youtube-cookies",
-                                 "xhs-cookies"],
+                                 "twitter-cookies", "youtube-cookies"],
                         help="What to configure (omit if using --from-browser)")
     p_conf.add_argument("value", nargs="*", help="The value(s) to set")
     p_conf.add_argument("--from-browser", metavar="BROWSER",
@@ -105,7 +103,7 @@ def main():
 
     # ── format ──
     p_format = sub.add_parser("format", help="Clean and format platform API output")
-    p_format.add_argument("platform", choices=["xhs"], help="Platform to format (xhs)")
+    p_format.add_argument("platform", choices=[], help="Platform to format")
 
     # ── check-update ──
     sub.add_parser("check-update", help="Check for new versions and changes")
@@ -180,23 +178,17 @@ def _cmd_install(args):
 
     # ── Parse --channels ──
     CHANNEL_INSTALLERS = {
-        "twitter":     _install_twitter_deps,
-        "weibo":       _install_weibo_deps,
-        "wechat":      _install_wechat_deps,
-        "xiaoyuzhou":  _install_xiaoyuzhou_deps,
-        "xiaohongshu": _install_xhs_deps,
-        "reddit":      _install_reddit_deps,
-        "bilibili":    _install_bili_deps,
-        # xueqiu: cookie-only, no install step
-        # douyin/linkedin: manual setup, no auto-install
+        "twitter":  _install_twitter_deps,
+        "reddit":   _install_reddit_deps,
+        # linkedin: manual setup, no auto-install
     }
-    COOKIE_CHANNELS = {"twitter", "xueqiu", "bilibili"}
+    COOKIE_CHANNELS = {"twitter"}
 
     requested_channels = set()
     if args.channels:
         raw = [c.strip().lower() for c in args.channels.split(",") if c.strip()]
         if "all" in raw:
-            requested_channels = set(CHANNEL_INSTALLERS.keys()) | {"xueqiu", "douyin", "linkedin"}
+            requested_channels = set(CHANNEL_INSTALLERS.keys()) | {"linkedin"}
         else:
             requested_channels = set(raw)
 
@@ -213,10 +205,10 @@ def _cmd_install(args):
     # Apply explicit flags
     if args.proxy:
         if dry_run:
-            print("[dry-run] Would configure proxy for Bilibili")
+            print("[dry-run] Would configure proxy for Reddit")
         else:
-            config.set("bilibili_proxy", args.proxy)
-            print("✅ Proxy configured for Bilibili")
+            config.set("reddit_proxy", args.proxy)
+            print("✅ Proxy configured for Reddit")
 
     # ── Install core system dependencies (lightweight, always) ──
     print()
@@ -281,9 +273,9 @@ def _cmd_install(args):
     # Environment-specific advice
     if env == "server":
         print()
-        print("Tip: Bilibili may block server IPs.")
+        
         print("   Reddit: rdt-cli works without proxy (pipx install rdt-cli).")
-        print("   For Bilibili full access: agent-reach configure proxy http://user:pass@ip:port")
+        print("   For Reddit proxy: agent-reach configure proxy ******ip:port")
         print("   Cheap option: https://www.webshare.io ($1/month)")
 
     # Test channels
@@ -308,14 +300,13 @@ def _cmd_install(args):
             # First install — hint about optional channels
             print()
             print("More channels available! Use --channels to install:")
-            print("   agent-reach install --channels=twitter,weibo,xiaohongshu,...")
+            print("   agent-reach install --channels=twitter,reddit,linkedin,...")
             print("   agent-reach install --channels=all  (install everything)")
 
         # Star reminder
         print()
-        print("如果 Agent Reach 帮到了你，给个 Star 让更多人发现它吧：")
+        print("If Agent Reach helped you, give it a Star so others can find it:")
         print("   https://github.com/Panniantong/Agent-Reach")
-        print("   只需一秒，对独立开发者意义很大。谢谢！")
     else:
         print()
         print("Dry run complete. No changes were made.")
@@ -462,22 +453,11 @@ def _cmd_skill(args):
 
 def _cmd_format(args):
     """Clean and format platform API output from stdin."""
-    import sys
+    print("No format platforms configured.", file=__import__('sys').stderr)
+    __import__('sys').exit(1)
 
-    if args.platform == "xhs":
-        from agent_reach.channels.xiaohongshu import format_xhs_result
-
-        raw = sys.stdin.read().strip()
-        if not raw:
-            print("Error: no input on stdin", file=sys.stderr)
-            sys.exit(1)
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as e:
-            print(f"Error: invalid JSON: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        cleaned = format_xhs_result(data)
+    if False:
+        cleaned = None
         print(json.dumps(cleaned, ensure_ascii=False, indent=2))
 
 
@@ -603,53 +583,9 @@ def _install_system_deps():
             except Exception:
                 print("  -- Could not configure yt-dlp JS runtime (YouTube may not work)")
 
-    # NOTE: twitter-cli, weibo, xiaoyuzhou, wechat, xhs-cli etc. are optional.
+    # NOTE: twitter-cli etc. are optional.
     # They are installed via --channels flag, not here.
     # See CHANNEL_INSTALLERS in _cmd_install().
-
-
-def _install_xiaoyuzhou_deps():
-    """Install Xiaoyuzhou podcast transcription script."""
-    import shutil
-
-    from agent_reach.config import Config
-
-    config = Config()
-    print("Setting up Xiaoyuzhou podcast transcription...")
-
-    tools_dir = os.path.expanduser("~/.agent-reach/tools/xiaoyuzhou")
-    script_dst = os.path.join(tools_dir, "transcribe.sh")
-
-    if os.path.isfile(script_dst):
-        print("  ✅ Xiaoyuzhou transcription script already installed")
-    else:
-        # Copy script from package
-        script_src = os.path.join(os.path.dirname(__file__), "scripts", "transcribe_xiaoyuzhou.sh")
-        if os.path.isfile(script_src):
-            try:
-                os.makedirs(tools_dir, exist_ok=True)
-                import shutil as _shutil
-                _shutil.copy2(script_src, script_dst)
-                os.chmod(script_dst, 0o755)
-                print("  ✅ Xiaoyuzhou transcription script installed")
-            except Exception as e:
-                print(f"  [!]  Failed to install script: {e}")
-        else:
-            print("  [!]  Script source not found in package")
-
-    # Check ffmpeg
-    if shutil.which("ffmpeg"):
-        print("  ✅ ffmpeg available")
-    else:
-        print("  -- ffmpeg not found. Install: apt install -y ffmpeg (or brew install ffmpeg)")
-
-    # Check GROQ_API_KEY
-    has_key = bool(os.environ.get("GROQ_API_KEY")) or bool(config.get("groq_api_key"))
-    if has_key:
-        print("  ✅ Groq API key configured")
-    else:
-        print("  -- Groq API key not set. Get free key at https://console.groq.com")
-        print("     Then run: agent-reach configure groq-key gsk_xxxxx")
 
 
 def _install_twitter_deps():
@@ -675,29 +611,6 @@ def _install_twitter_deps():
     print("  [!]  twitter-cli install failed. Run: pipx install twitter-cli")
 
 
-def _install_xhs_deps():
-    """Install xhs-cli (xiaohongshu-cli) for XiaoHongShu."""
-    import shutil
-    import subprocess
-
-    print("Setting up XiaoHongShu (xhs-cli)...")
-    if shutil.which("xhs"):
-        print("  ✅ xhs-cli already installed")
-        return
-    for tool, cmd in [("pipx", ["pipx", "install", "xiaohongshu-cli"]),
-                      ("uv", ["uv", "tool", "install", "xiaohongshu-cli"])]:
-        if shutil.which(tool):
-            try:
-                subprocess.run(cmd, capture_output=True, encoding="utf-8",
-                               errors="replace", timeout=120)
-                if shutil.which("xhs"):
-                    print("  ✅ xhs-cli installed (run `xhs login` to authenticate)")
-                    return
-            except Exception:
-                pass
-    print("  [!]  xhs-cli install failed. Run: pipx install xiaohongshu-cli")
-
-
 def _install_reddit_deps():
     """Install rdt-cli for Reddit search + reading."""
     import shutil
@@ -719,146 +632,6 @@ def _install_reddit_deps():
             except Exception:
                 pass
     print("  [!]  rdt-cli install failed. Run: pipx install rdt-cli")
-
-
-def _install_bili_deps():
-    """Install bili-cli for Bilibili hot/rank/search."""
-    import shutil
-    import subprocess
-
-    print("Setting up Bilibili (bili-cli)...")
-    if shutil.which("bili"):
-        print("  ✅ bili-cli already installed")
-        return
-    for tool, cmd in [("pipx", ["pipx", "install", "bilibili-cli"]),
-                      ("uv", ["uv", "tool", "install", "bilibili-cli"])]:
-        if shutil.which(tool):
-            try:
-                subprocess.run(cmd, capture_output=True, encoding="utf-8",
-                               errors="replace", timeout=120)
-                if shutil.which("bili"):
-                    print("  ✅ bili-cli installed")
-                    return
-            except Exception:
-                pass
-    print("  [!]  bili-cli install failed. Run: pipx install bilibili-cli")
-
-
-def _install_weibo_deps():
-    """Install Weibo MCP server (Panniantong fork with visitor passport auth)."""
-    import shutil
-    import subprocess
-
-    print("Setting up Weibo MCP server...")
-
-    # Check if already installed and working
-    mcporter = shutil.which("mcporter")
-    if mcporter:
-        try:
-            r = subprocess.run(
-                [mcporter, "config", "list"], capture_output=True,
-                encoding="utf-8", errors="replace", timeout=5
-            )
-            if "weibo" in r.stdout:
-                print("  ✅ Weibo MCP already configured")
-                return
-        except Exception:
-            pass
-
-    # Install from our fork (has visitor passport auth fix)
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-q",
-             "git+https://github.com/Panniantong/mcp-server-weibo.git"],
-            check=True, timeout=120
-        )
-        print("  ✅ mcp-server-weibo installed (Panniantong fork)")
-    except Exception as e:
-        print(f"  [!]  mcp-server-weibo install failed: {e}")
-        return
-
-    # Register with mcporter
-    if mcporter:
-        try:
-            subprocess.run(
-                [mcporter, "config", "add", "weibo", "--command", "mcp-server-weibo"],
-                check=True, capture_output=True, timeout=10
-            )
-            print("  ✅ Weibo MCP registered with mcporter")
-        except Exception:
-            print("  [!]  mcporter config add failed. Run manually: mcporter config add weibo --command 'mcp-server-weibo'")
-    else:
-        print("  -- mcporter not found, skipping MCP registration. Install mcporter first, then run: mcporter config add weibo --command 'mcp-server-weibo'")
-
-
-def _install_wechat_deps():
-    """Install WeChat article reading and search dependencies."""
-    import subprocess
-
-    print("Setting up WeChat article tools...")
-
-    # Check if already installed
-    has_camoufox = False
-    has_miku = False
-    try:
-        import camoufox  # noqa: F401
-        has_camoufox = True
-    except ImportError:
-        pass
-    try:
-        import miku_ai  # noqa: F401
-        has_miku = True
-    except ImportError:
-        pass
-
-    # Install Python packages
-    if has_camoufox and has_miku:
-        print("  ✅ WeChat Python packages already installed")
-    else:
-        pkgs = []
-        if not has_camoufox:
-            pkgs.extend(["camoufox[geoip]", "markdownify", "beautifulsoup4", "httpx"])
-        if not has_miku:
-            pkgs.append("miku_ai")
-        try:
-            cmd = [sys.executable, "-m", "pip", "install", "--break-system-packages", "-q"] + pkgs
-            subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
-            # Verify
-            ok = True
-            try:
-                import importlib
-                if not has_camoufox:
-                    importlib.import_module("camoufox")
-                if not has_miku:
-                    importlib.import_module("miku_ai")
-            except ImportError:
-                ok = False
-            if ok:
-                print(f"  ✅ WeChat Python packages installed ({', '.join(pkgs)})")
-            else:
-                print(f"  [!]  Some WeChat packages failed to install. Try: pip install {' '.join(pkgs)}")
-        except Exception:
-            print(f"  [!]  WeChat packages install failed. Try: pip install {' '.join(pkgs)}")
-
-    # Clone wechat-article-for-ai tool
-    tools_dir = os.path.expanduser("~/.agent-reach/tools")
-    wechat_dir = os.path.join(tools_dir, "wechat-article-for-ai")
-    if os.path.isfile(os.path.join(wechat_dir, "main.py")):
-        print("  ✅ wechat-article-for-ai tool already installed")
-    else:
-        try:
-            os.makedirs(tools_dir, exist_ok=True)
-            subprocess.run(
-                ["git", "clone", "--depth", "1",
-                 "https://github.com/Panniantong/wechat-article-for-ai.git", wechat_dir],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=60,
-            )
-            if os.path.isfile(os.path.join(wechat_dir, "main.py")):
-                print("  ✅ wechat-article-for-ai tool installed")
-            else:
-                print("  [!]  wechat-article-for-ai clone failed. Try: git clone https://github.com/Panniantong/wechat-article-for-ai.git " + wechat_dir)
-        except Exception:
-            print("  [!]  wechat-article-for-ai clone failed. Try: git clone https://github.com/Panniantong/wechat-article-for-ai.git " + wechat_dir)
 
 
 def _install_system_deps_safe():
@@ -955,7 +728,7 @@ def _install_mcporter():
     except Exception:
         print("  [!]  Could not configure Exa. Run manually: mcporter config add exa https://mcp.exa.ai/mcp")
 
-    # NOTE: xhs-cli is now optional, installed via --channels=xiaohongshu
+    # NOTE: Optional channels are installed via --channels flag.
 
 
 def _install_mcporter_safe():
@@ -1060,9 +833,8 @@ def _cmd_configure(args):
         return
 
     if args.key == "proxy":
-        config.set("bilibili_proxy", value)
-        print("✅ Proxy configured for Bilibili!")
-        print("  Note: Reddit 已改为通过 rdt-cli 访问，无需代理。")
+        config.set("reddit_proxy", value)
+        print("✅ Proxy configured for Reddit!")
 
     elif args.key == "twitter-cookies":
         # Accept two formats:
@@ -1111,8 +883,6 @@ def _cmd_configure(args):
         print(f"✅ YouTube cookie source configured: {value}")
         print("   yt-dlp will use cookies from this browser for age-restricted/member videos.")
 
-    elif args.key == "xhs-cookies":
-        _configure_xhs_cookies(value)
 
     elif args.key == "github-token":
         config.set("github_token", value)
@@ -1142,181 +912,6 @@ def _parse_twitter_cookie_input(value: str):
         ct0 = parts[1]
 
     return auth_token, ct0
-
-
-def _configure_xhs_cookies(value):
-    """Import cookies into xiaohongshu-mcp Docker container.
-
-    Accepts two formats:
-    1. Cookie-Editor JSON export (array of cookie objects)
-    2. Header String: "name1=value1; name2=value2; ..."
-
-    The xiaohongshu-mcp container stores cookies at $COOKIES_PATH
-    (default: /app/data/cookies.json or cookies.json in workdir).
-    Format: JSON array of {name, value, domain, path, expires, httpOnly, secure, sameSite}.
-    """
-    import shutil
-    import subprocess
-
-    value = value.strip()
-    if not value:
-        print("[X] Missing cookie value.")
-        print("   Usage: agent-reach configure xhs-cookies '<cookie JSON or header string>'")
-        return
-
-    # Detect format and parse
-    cookies_json = None
-
-    # Try JSON format first (Cookie-Editor JSON export)
-    if value.startswith("["):
-        try:
-            parsed = json.loads(value)
-            if isinstance(parsed, list) and parsed:
-                # Validate it looks like cookie objects
-                first = parsed[0]
-                if isinstance(first, dict) and "name" in first and "value" in first:
-                    cookies_json = json.dumps(parsed)
-                    print(f"  Parsed {len(parsed)} cookies from JSON format")
-                else:
-                    print("[X] JSON array doesn't contain cookie objects (need name/value fields)")
-                    return
-            else:
-                print("[X] Empty or invalid JSON array")
-                return
-        except json.JSONDecodeError as e:
-            print(f"[X] Invalid JSON: {e}")
-            return
-
-    # Header String format: "key1=val1; key2=val2; ..."
-    if cookies_json is None and "=" in value:
-        cookies = []
-        for part in value.split(";"):
-            part = part.strip()
-            if "=" not in part:
-                continue
-            name, val = part.split("=", 1)
-            name = name.strip()
-            val = val.strip()
-            if name:
-                cookies.append({
-                    "name": name,
-                    "value": val,
-                    "domain": ".xiaohongshu.com",
-                    "path": "/",
-                    "expires": -1,
-                    "size": len(name) + len(val),
-                    "httpOnly": False,
-                    "secure": False,
-                    "session": True,
-                    "sameSite": "Lax",
-                })
-        if cookies:
-            cookies_json = json.dumps(cookies)
-            print(f"  Parsed {len(cookies)} cookies from Header String format")
-        else:
-            print("[X] Could not parse any cookies from input")
-            return
-
-    if not cookies_json:
-        print("[X] Could not parse cookies. Accepted formats:")
-        print('   1. JSON array: \'[{"name":"x","value":"y","domain":".xiaohongshu.com",...}]\'')
-        print('   2. Header String: "key1=val1; key2=val2; ..."')
-        return
-
-    # Find the container
-    docker = shutil.which("docker")
-    if not docker:
-        # No Docker - write to a local file for manual import
-        cookie_path = os.path.expanduser("~/.agent-reach/xhs-cookies.json")
-        with open(cookie_path, "w") as f:
-            f.write(cookies_json)
-        os.chmod(cookie_path, 0o600)
-        print(f"  Cookies saved to {cookie_path}")
-        print("  Docker not found. Copy manually:")
-        print(f"  docker cp {cookie_path} xiaohongshu-mcp:/app/data/cookies.json")
-        return
-
-    # Check if xiaohongshu-mcp container is running
-    try:
-        result = subprocess.run(
-            [docker, "ps", "--filter", "name=xiaohongshu-mcp", "--format", "{{.Names}}"],
-            capture_output=True, encoding="utf-8", timeout=5,
-        )
-        container_name = result.stdout.strip()
-        if not container_name:
-            print("[X] xiaohongshu-mcp container is not running.")
-            print("   Start it first:")
-            print("   docker run -d --name xiaohongshu-mcp -p 18060:18060 xpzouying/xiaohongshu-mcp")
-            return
-    except Exception as e:
-        print(f"[X] Could not check Docker: {e}")
-        return
-
-    # Find the cookies path inside the container
-    try:
-        result = subprocess.run(
-            [docker, "exec", container_name, "printenv", "COOKIES_PATH"],
-            capture_output=True, encoding="utf-8", timeout=5,
-        )
-        cookie_path_in_container = result.stdout.strip()
-        if not cookie_path_in_container:
-            cookie_path_in_container = "/app/cookies.json"  # fallback: absolute path in workdir
-    except Exception:
-        cookie_path_in_container = "/app/cookies.json"
-
-    # Write cookies into the container
-    try:
-        # Write to temp file then docker cp
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write(cookies_json)
-            tmp_path = f.name
-
-        result = subprocess.run(
-            [docker, "cp", tmp_path, f"{container_name}:{cookie_path_in_container}"],
-            capture_output=True, encoding="utf-8", timeout=10,
-        )
-        os.unlink(tmp_path)
-
-        if result.returncode != 0:
-            print(f"[X] Failed to copy cookies: {result.stderr}")
-            return
-
-        print(f"✅ Cookies written to {container_name}:{cookie_path_in_container}")
-        # Restart container so it reloads cookies from disk
-        print("  Restarting container to reload cookies...", end=" ", flush=True)
-        try:
-            subprocess.run(
-                [docker, "restart", container_name],
-                capture_output=True, encoding="utf-8", timeout=30,
-            )
-            print("done")
-        except Exception as e:
-            print(f"\n  [!] Could not restart container: {e}")
-            print(f"  Restart manually: docker restart {container_name}")
-    except Exception as e:
-        print(f"[X] Failed to write cookies: {e}")
-        return
-
-    # Verify login status via mcporter
-    mcporter = shutil.which("mcporter")
-    if mcporter:
-        print("  Verifying login status...", end=" ")
-        try:
-            result = subprocess.run(
-                [mcporter, "call", "xiaohongshu.check_login_status()"],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=15,
-            )
-            if "已登录" in result.stdout or "logged" in result.stdout.lower():
-                print("✅ Login verified!")
-            else:
-                print("[!] Login check returned unexpected result:")
-                print(f"  {result.stdout.strip()[:200]}")
-                print("  Cookies were written but login might not be valid. Try fresh cookies.")
-        except Exception as e:
-            print(f"[!] Could not verify: {e}")
-    else:
-        print("  (mcporter not found, skipping verification)")
 
 
 def _cmd_uninstall(args):
@@ -1378,7 +973,7 @@ def _cmd_uninstall(args):
 
     # ── 3. mcporter MCP entries ──
     if shutil.which("mcporter"):
-        for mcp_name in ("exa", "xiaohongshu"):
+        for mcp_name in ("exa",):
             try:
                 r = subprocess.run(
                     ["mcporter", "list"], capture_output=True, encoding="utf-8", errors="replace", timeout=10
@@ -1448,13 +1043,13 @@ def _cmd_setup():
     import shutil
     import subprocess
 
-    print("【推荐】全网搜索 — Exa（通过 mcporter）")
-    print("  免费，无需 API Key")
+    print("[Recommended] Full-web search — Exa (via mcporter)")
+    print("  Free, no API key required")
 
     if not shutil.which("mcporter"):
-        print("  当前状态: -- mcporter 未安装")
-        print("  安装：npm install -g mcporter")
-        print("  然后：mcporter config add exa https://mcp.exa.ai/mcp")
+        print("  Status: -- mcporter not installed")
+        print("  Install: npm install -g mcporter")
+        print("  Then: mcporter config add exa https://mcp.exa.ai/mcp")
         print()
     else:
         try:
@@ -1462,65 +1057,65 @@ def _cmd_setup():
                 ["mcporter", "config", "list"], capture_output=True, encoding="utf-8", errors="replace", timeout=10
             )
             if "exa" in r.stdout.lower():
-                print("  当前状态: ✅ 已配置")
+                print("  Status: ✅ configured")
             else:
-                print("  当前状态: -- 未配置")
-                setup_now = input("  现在自动配置 Exa 吗？[Y/n]: ").strip().lower()
+                print("  Status: -- not configured")
+                setup_now = input("  Auto-configure Exa now? [Y/n]: ").strip().lower()
                 if setup_now in ("", "y", "yes"):
                     add_r = subprocess.run(
                         ["mcporter", "config", "add", "exa", "https://mcp.exa.ai/mcp"],
                         capture_output=True, encoding="utf-8", errors="replace", timeout=10,
                     )
                     if add_r.returncode == 0:
-                        print("  ✅ Exa 已配置")
+                        print("  ✅ Exa configured")
                     else:
-                        print("  [!] 自动配置失败，请手动执行：")
+                        print("  [!] Auto-config failed. Run manually:")
                         print("     mcporter config add exa https://mcp.exa.ai/mcp")
         except Exception:
-            print("  [!] 无法检查 Exa 配置，请手动执行：")
+            print("  [!] Could not check Exa config. Run manually:")
             print("     mcporter config add exa https://mcp.exa.ai/mcp")
         print()
 
     # Step 2: GitHub token
-    print("【可选】GitHub Token — 提高 API 限额")
-    print("  无 token: 60 次/小时 | 有 token: 5000 次/小时")
-    print("  获取: https://github.com/settings/tokens (无需任何权限)")
+    print("[Optional] GitHub Token — raises API rate limit")
+    print("  No token: 60/hr | With token: 5000/hr")
+    print("  Get one: https://github.com/settings/tokens (no permissions needed)")
     current = config.get("github_token")
     if current:
-        print("  当前状态: ✅ 已配置")
+        print("  Status: ✅ configured")
     else:
-        key = input("  GITHUB_TOKEN (回车跳过): ").strip()
+        key = input("  GITHUB_TOKEN (Enter to skip): ").strip()
         if key:
             config.set("github_token", key)
-            print("  ✅ GitHub API 已提升至 5000 次/小时！")
+            print("  ✅ GitHub API raised to 5000/hr!")
         else:
-            print("  跳过。公开 API 也能用")
+            print("  Skipped. Public API still works.")
     print()
 
     # Step 3: Reddit — rdt-cli
-    print("【信息】Reddit — 通过 rdt-cli 搜索和阅读，无需配置")
-    print("  安装：pipx install rdt-cli")
+    print("[Info] Reddit — search and read via rdt-cli, no config needed")
+    print("  Install: pipx install rdt-cli")
     print()
 
     # Step 4: Groq (Whisper)
-    print("【可选】Groq API — 视频无字幕时的语音转文字")
-    print("  免费额度，注册: https://console.groq.com")
+    print("[Optional] Groq API — speech-to-text when no subtitles available")
+    print("  Free tier, sign up: https://console.groq.com")
     current = config.get("groq_api_key")
     if current:
-        print("  当前状态: ✅ 已配置")
+        print("  Status: ✅ configured")
     else:
-        key = input("  GROQ_API_KEY (回车跳过): ").strip()
+        key = input("  GROQ_API_KEY (Enter to skip): ").strip()
         if key:
             config.set("groq_api_key", key)
-            print("  ✅ 语音转文字已开启！")
+            print("  ✅ Speech-to-text enabled!")
         else:
-            print("  跳过")
+            print("  Skipped")
     print()
 
     # Summary
     print("=" * 40)
-    print(f"✅ 配置已保存到 {config.config_path}")
-    print("运行 agent-reach doctor 查看完整状态")
+    print(f"✅ Config saved to {config.config_path}")
+    print("Run agent-reach doctor to see full status")
     print()
 
 
@@ -1551,15 +1146,15 @@ def _classify_update_error(exc):
 def _update_error_text(kind):
     """Map internal error kinds to user-facing text."""
     mapping = {
-        "timeout": "网络超时",
-        "dns": "DNS 解析失败",
-        "rate_limit": "GitHub API 速率限制",
-        "connection": "网络连接失败",
-        "server_error": "GitHub 服务暂时不可用",
-        "http": "HTTP 请求失败",
-        "unknown": "未知网络错误",
+        "timeout": "network timeout",
+        "dns": "DNS resolution failed",
+        "rate_limit": "GitHub API rate limit",
+        "connection": "network connection failed",
+        "server_error": "GitHub service temporarily unavailable",
+        "http": "HTTP request failed",
+        "unknown": "unknown network error",
     }
-    return mapping.get(kind, "请求失败")
+    return mapping.get(kind, "request failed")
 
 
 def _classify_github_response_error(resp):
@@ -1619,14 +1214,14 @@ def _cmd_check_update():
     """Check for newer versions on GitHub."""
     from agent_reach import __version__
 
-    print(f"当前版本: v{__version__}")
+    print(f"Current version: v{__version__}")
     release_url = "https://api.github.com/repos/Panniantong/Agent-Reach/releases/latest"
     commit_url = "https://api.github.com/repos/Panniantong/Agent-Reach/commits/main"
 
     # Fetch latest release with retry/backoff.
     resp, err, attempts = _github_get_with_retry(release_url, timeout=10, retries=3)
     if err:
-        print(f"[!] 无法检查更新（{_update_error_text(err)}，已重试 {attempts} 次）")
+        print(f"[!] Could not check for updates ({_update_error_text(err)}, retried {attempts} times)")
         return "error"
 
     if resp.status_code == 200:
@@ -1635,47 +1230,47 @@ def _cmd_check_update():
         body = data.get("body", "")
 
         if latest and latest != __version__:
-            print(f"最新版本: v{latest} ← 有更新！")
+            print(f"Latest version: v{latest} — update available!")
             if body:
                 print()
-                print("更新内容：")
+                print("What's new:")
                 # Show first 20 lines of release notes
                 for line in body.strip().split("\n")[:20]:
                     print(f"  {line}")
             print()
-            print("更新命令:")
+            print("Update command:")
             print("  pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
             return "update_available"
-        print("✅ 已是最新版本")
+        print("✅ Already up to date")
         return "up_to_date"
 
     release_err = _classify_github_response_error(resp)
     if release_err == "rate_limit":
-        print("[!] 无法检查更新（GitHub API 速率限制，请稍后重试）")
+        print("[!] Could not check for updates (GitHub API rate limit, retry later)")
         return "error"
 
     # No releases yet, fall back to latest main commit.
     resp2, err2, attempts2 = _github_get_with_retry(commit_url, timeout=10, retries=2)
     if err2:
-        print(f"[!] 无法检查更新（{_update_error_text(err2)}，已重试 {attempts + attempts2} 次）")
+        print(f"[!] Could not check for updates ({_update_error_text(err2)}, retried {attempts + attempts2} times)")
         return "error"
     if resp2.status_code == 200:
         commit = resp2.json()
         sha = commit.get("sha", "")[:7]
         msg = commit.get("commit", {}).get("message", "").split("\n")[0]
         date = commit.get("commit", {}).get("committer", {}).get("date", "")[:10]
-        print(f"最新提交: {sha} ({date}) {msg}")
+        print(f"Latest commit: {sha} ({date}) {msg}")
         print()
-        print("更新命令:")
+        print("Update command:")
         print("  pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
         return "unknown"
 
     commit_err = _classify_github_response_error(resp2)
     if commit_err == "rate_limit":
-        print("[!] 无法检查更新（GitHub API 速率限制，请稍后重试）")
+        print("[!] Could not check for updates (GitHub API rate limit, retry later)")
         return "error"
 
-    print(f"[!] 无法检查更新（GitHub 返回 {resp2.status_code}）")
+    print(f"[!] Could not check for updates (GitHub returned {resp2.status_code})")
     return "error"
 
 
@@ -1699,9 +1294,9 @@ def _cmd_watch():
     # Find broken channels (were working, now broken)
     for key, r in results.items():
         if r["status"] in ("off", "error"):
-            issues.append(f"[X] {r['name']}：{r['message']}")
+            issues.append(f"[X] {r['name']}: {r['message']}")
         elif r["status"] == "warn":
-            issues.append(f"[!] {r['name']}：{r['message']}")
+            issues.append(f"[!] {r['name']}: {r['message']}")
 
     # Check for updates
     update_available = False
@@ -1722,12 +1317,12 @@ def _cmd_watch():
 
     # Output
     if not issues and not update_available:
-        print(f"Agent Reach: 全部正常 ({ok}/{total} 渠道可用，v{__version__} 已是最新)")
+        print(f"Agent Reach: all OK ({ok}/{total} channels available, v{__version__} is latest)")
         return
 
-    print("Agent Reach 监控报告")
+    print("Agent Reach Monitor Report")
     print("=" * 40)
-    print(f"版本: v{__version__}  |  渠道: {ok}/{total}")
+    print(f"Version: v{__version__}  |  Channels: {ok}/{total}")
 
     if issues:
         print()
@@ -1736,11 +1331,11 @@ def _cmd_watch():
 
     if update_available:
         print()
-        print(f"新版本可用: v{new_version}")
+        print(f"New version available: v{new_version}")
         if release_body:
             for line in release_body.strip().split("\n")[:10]:
                 print(f"    {line}")
-        print("  更新: pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
+        print("  Update: pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip")
 
 
 if __name__ == "__main__":

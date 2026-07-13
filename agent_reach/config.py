@@ -103,7 +103,7 @@ class Config:
         masked = {}
         for k, v in self.data.items():
             if any(s in k.lower() for s in ("key", "token", "password", "proxy")):
-                masked[k] = f"{str(v)[:8]}..." if v else None
+                masked[k] = "[REDACTED]" if v else None
             else:
                 masked[k] = v
         return masked

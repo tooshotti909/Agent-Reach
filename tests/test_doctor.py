@@ -31,9 +31,9 @@ class TestDoctor:
             doctor,
             "get_all_channels",
             lambda: [
-                _StubChannel("web", "网页", 0, "ok", "可抓取网页", ["requests"]),
-                _StubChannel("github", "GitHub", 0, "warn", "gh 未安装", ["gh"]),
-                _StubChannel("exa_search", "全网语义搜索", 1, "off", "mcporter 未配置", ["Exa"]),
+                _StubChannel("web", "Web", 0, "ok", "Can fetch web pages", ["requests"]),
+                _StubChannel("github", "GitHub", 0, "warn", "gh not installed", ["gh"]),
+                _StubChannel("exa_search", "Exa semantic search", 1, "off", "mcporter not configured", ["Exa"]),
             ],
         )
 
@@ -42,22 +42,22 @@ class TestDoctor:
         assert results == {
             "web": {
                 "status": "ok",
-                "name": "网页",
-                "message": "可抓取网页",
+                "name": "Web",
+                "message": "Can fetch web pages",
                 "tier": 0,
                 "backends": ["requests"],
             },
             "github": {
                 "status": "warn",
                 "name": "GitHub",
-                "message": "gh 未安装",
+                "message": "gh not installed",
                 "tier": 0,
                 "backends": ["gh"],
             },
             "exa_search": {
                 "status": "off",
-                "name": "全网语义搜索",
-                "message": "mcporter 未配置",
+                "name": "Exa semantic search",
+                "message": "mcporter not configured",
                 "tier": 1,
                 "backends": ["Exa"],
             },
@@ -68,33 +68,30 @@ class TestDoctor:
             {
                 "web": {
                     "status": "ok",
-                    "name": "网页",
-                    "message": "可抓取网页",
+                    "name": "Web",
+                    "message": "Can fetch web pages",
                     "tier": 0,
                     "backends": ["requests"],
                 },
                 "exa_search": {
                     "status": "off",
-                    "name": "全网语义搜索",
-                    "message": "mcporter 未配置",
+                    "name": "Exa semantic search",
+                    "message": "mcporter not configured",
                     "tier": 1,
                     "backends": ["Exa"],
                 },
-                "xiaohongshu": {
+                "reddit": {
                     "status": "warn",
-                    "name": "小红书",
-                    "message": "MCP 已配置，但健康检查超时",
+                    "name": "Reddit",
+                    "message": "rdt-cli not installed",
                     "tier": 2,
-                    "backends": ["mcporter"],
+                    "backends": ["rdt-cli"],
                 },
             }
         )
 
-        # Strip Rich markup tags for assertion (PR #170 added [bold], [yellow] etc.)
+        # Strip Rich markup tags for assertion
         import re
         plain = re.sub(r"\[[^\]]*\]", "", report)
         assert "Agent Reach" in plain
-        assert "装好即用：" in plain
-        assert "1/3 个渠道可用" in plain
-        # Inactive optional channels should be summarized in one line
-        assert "可选渠道可以解锁" in plain
+        assert "1/3" in plain

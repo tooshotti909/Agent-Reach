@@ -2,7 +2,7 @@
 """Auto-extract cookies from local browsers for all supported platforms.
 
 Supports: Chrome, Firefox, Edge, Brave, Opera
-Extracts: Twitter, XiaoHongShu, Bilibili cookies in one shot.
+Extracts: Twitter/X cookies in one shot.
 
 Usage:
     agent-reach configure --from-browser chrome
@@ -25,36 +25,16 @@ PLATFORM_SPECS: List[PlatformSpec] = [
         "cookies": ["auth_token", "ct0"],
         "config_key": "twitter",
     },
-    {
-        "name": "XiaoHongShu",
-        "domains": [".xiaohongshu.com"],
-        "cookies": None,  # None = grab all cookies as header string
-        "config_key": "xhs",
-    },
-    {
-        "name": "Bilibili",
-        "domains": [".bilibili.com"],
-        "cookies": ["SESSDATA", "bili_jct"],
-        "config_key": "bilibili",
-    },
-    {
-        "name": "Xueqiu",
-        "domains": [".xueqiu.com", "xueqiu.com"],
-        "cookies": None,  # grab all — xq_a_token + session cookies required
-        "config_key": "xueqiu",
-    },
 ]
 
 
 def extract_all(browser: str = "chrome") -> Dict[str, dict]:
     """
     Extract cookies for all supported platforms from the specified browser.
-    
+
     Returns:
         {
             "twitter": {"auth_token": "xxx", "ct0": "yyy"},
-            "xhs": {"cookie_string": "a=1; b=2; ..."},
-            "bilibili": {"SESSDATA": "xxx", "bili_jct": "yyy"},
         }
     """
     # Try rookiepy first (Rust-based, more stable), fallback to browser_cookie3
@@ -207,7 +187,7 @@ _sync_bird_credentials = _sync_bird_env
 def configure_from_browser(browser: str, config) -> List[Tuple[str, bool, str]]:
     """
     Extract cookies and configure all found platforms.
-    
+
     Returns list of (platform_name, success, message) tuples.
     """
     results_list = []
@@ -220,7 +200,7 @@ def configure_from_browser(browser: str, config) -> List[Tuple[str, bool, str]]:
     if not extracted:
         return [("All platforms", False,
                  f"No platform cookies found in {browser}. "
-                 f"Make sure you're logged into Twitter, XiaoHongShu, etc. in {browser}.")]
+                 f"Make sure you're logged into Twitter/X in {browser}.")]
 
     # Configure each found platform
     if "twitter" in extracted:
@@ -238,35 +218,5 @@ def configure_from_browser(browser: str, config) -> List[Tuple[str, bool, str]]:
                                  f"Found {found}, but missing: {', '.join(missing)}. "
                                  f"Make sure you're logged into x.com in {browser}."))
 
-    if "xhs" in extracted:
-        cookie_str = extracted["xhs"].get("cookie_string", "")
-        if cookie_str:
-            config.set("xhs_cookie", cookie_str)
-            n_cookies = len(cookie_str.split(";"))
-            results_list.append(("XiaoHongShu", True, f"{n_cookies} cookies"))
-
-    if "bilibili" in extracted:
-        bc = extracted["bilibili"]
-        if "SESSDATA" in bc:
-            config.set("bilibili_sessdata", bc["SESSDATA"])
-            if "bili_jct" in bc:
-                config.set("bilibili_csrf", bc["bili_jct"])
-            results_list.append(("Bilibili", True, "SESSDATA" +
-                                 (" + bili_jct" if "bili_jct" in bc else "")))
-        else:
-            results_list.append(("Bilibili", False,
-                                 f"No SESSDATA found. Make sure you're logged into bilibili.com in {browser}."))
-
-    if "xueqiu" in extracted:
-        cookie_str = extracted["xueqiu"].get("cookie_string", "")
-        # Only save if xq_a_token is present — anonymous cookies are useless
-        if cookie_str and "xq_a_token" in cookie_str:
-            config.set("xueqiu_cookie", cookie_str)
-            n_cookies = len(cookie_str.split(";"))
-            results_list.append(("Xueqiu", True, f"{n_cookies} cookies (含 xq_a_token)"))
-        elif cookie_str:
-            results_list.append(("Xueqiu", False,
-                                 f"找到 {len(cookie_str.split(';'))} 个 Cookie 但缺少 xq_a_token，"
-                                 f"请先在 {browser} 中登录 xueqiu.com"))
-
     return results_list
+
