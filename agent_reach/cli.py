@@ -63,7 +63,7 @@ def main():
     p_install.add_argument("--env", choices=["local", "server", "auto"], default="auto",
                            help="Environment: local, server, or auto-detect")
     p_install.add_argument("--proxy", default="",
-                           help="Residential proxy for Reddit/Bilibili (http://user:pass@ip:port)")
+                           help="Proxy for Reddit (******ip:port)")
     p_install.add_argument("--safe", action="store_true",
                            help="Safe mode: skip automatic system changes, show what's needed instead")
     p_install.add_argument("--dry-run", action="store_true",
@@ -275,7 +275,7 @@ def _cmd_install(args):
         print()
         
         print("   Reddit: rdt-cli works without proxy (pipx install rdt-cli).")
-        print("   For Bilibili full access: agent-reach configure proxy http://user:pass@ip:port")
+        print("   For Reddit proxy: agent-reach configure proxy ******ip:port")
         print("   Cheap option: https://www.webshare.io ($1/month)")
 
     # Test channels
