@@ -672,7 +672,7 @@ class TestRedditChannel:
         assert status == "ok"
         assert "testuser" in msg
 
-    def test_reports_warn_when_not_authenticated(self, monkeypatch):
+    def test_reports_warn_when_unauthenticated(self, monkeypatch):
         monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/rdt")
         fake_output = json.dumps({
             "ok": True,
@@ -725,7 +725,7 @@ class TestXiaoHongShuChannel:
         assert status == "ok"
         assert "完整可用" in msg
 
-    def test_reports_warn_when_not_authenticated(self, monkeypatch):
+    def test_reports_warn_when_unauthenticated(self, monkeypatch):
         monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
 
         def fake_run(cmd, **kwargs):

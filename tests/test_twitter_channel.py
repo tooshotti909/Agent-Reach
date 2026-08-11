@@ -15,7 +15,7 @@ def _cp(stdout="", stderr="", returncode=0):
 
 # --- twitter-cli tests ---
 
-def test_check_twitter_cli_found_and_auth_ok():
+def test_check_twitter_cli_found_auth_ok():
     """twitter-cli found + twitter status ok → ok."""
     channel = TwitterChannel()
     with patch("shutil.which", side_effect=lambda name: "/usr/local/bin/twitter" if name == "twitter" else None), patch(
