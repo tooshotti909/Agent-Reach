@@ -34,7 +34,9 @@ dependencies = [
     "loguru>=0.7",
     "pyyaml>=6.0",
     "rich>=13.0",
-    "yt-dlp>=2026.6.9",
+    "yt-dlp>=2026.7.4",
+    "mcp>=1.27.2",
+    "cryptography>=50.0.0",
 ]
 
 [project.optional-dependencies]
@@ -86,3 +88,8 @@ warn_unused_ignores = true
 check_untyped_defs = true
 ignore_missing_imports = true
 exclude = ["^tests/"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
